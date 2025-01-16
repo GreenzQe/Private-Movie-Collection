@@ -5,6 +5,7 @@ import dk.easv.privatemoviecollection.GUI.Model.MovieCollectionModel;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
 import javafx.scene.control.Alert;
@@ -34,8 +35,13 @@ public class NewMovieWindowController {
     @FXML
     private Button cancelButton;
     private MovieCollectionController movieCollectionController;
+    @FXML
+    private ComboBox genreDropDown;
 
     @FXML
+    public void initialize() {
+        genreDropDown.getItems().addAll("Action", "Adventure", "Comedy", "Crime", "Drama", "Fantasy", "Historical", "Horror", "Mystery", "Philosophical", "Political", "Romance", "Saga", "Satire", "Science fiction", "Social", "Speculative", "Thriller", "Urban", "Western");
+    }
 
 
 
@@ -67,7 +73,7 @@ public class NewMovieWindowController {
         String name = movieNameField.getText();
         String genre = genreField.getText();
         double duration = durationField.getText().isEmpty() ? 0.0 : Double.parseDouble(durationField.getText());
-        String lastviewed = lastOpenedField.getText();
+        Date lastviewed = Date.valueOf(lastOpenedField.getText());
         double rating = ratingField.getText().isEmpty() ? 0.0 : Double.parseDouble(ratingField.getText());
         String path = fileLocationField.getText();
         
@@ -111,7 +117,7 @@ public class NewMovieWindowController {
         System.out.println("Rating: " + rating);
         System.out.println("File Location: " + path);
 
-        MovieCollection newMovie = new MovieCollection(name,rating,path,lastviewed,genre,duration);
+        MovieCollection newMovie = new MovieCollection(-1,name,rating,path,lastviewed,genre,duration);
 
         MovieCollectionModel.createMovie(newMovie);
         System.out.println("New Movie Added" + newMovie);

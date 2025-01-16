@@ -3,25 +3,37 @@ package dk.easv.privatemoviecollection.GUI.Controller;
 import dk.easv.privatemoviecollection.BE.Genre;
 import dk.easv.privatemoviecollection.BE.MovieCollection;
 import dk.easv.privatemoviecollection.GUI.Model.MovieCollectionModel;
+import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.TextField;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.layout.StackPane;
-import javafx.scene.media.Media;
+import javafx.scene.layout.HBox;
 import javafx.scene.media.MediaPlayer;
-import javafx.scene.media.MediaView;
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import java.time.LocalDate;
 
 
 import javax.swing.*;
+import java.awt.*;
+import java.io.File;
+import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.List;
 import java.util.ResourceBundle;
 
 public class MovieCollectionController implements Initializable {
@@ -33,6 +45,7 @@ public class MovieCollectionController implements Initializable {
     public TableColumn<MovieCollection, String> colRating;
     public Button btnDeleteMovie;
     public Button btnAddGenre;
+    public ListView lstGenreMovies;
     private MovieCollectionModel movieCollectionModel;
     @FXML
     private TextField txtSearchMovie;
@@ -41,10 +54,8 @@ public class MovieCollectionController implements Initializable {
     @FXML
     private TableView<Genre> tblGenre;
     public TableColumn<Genre, String> colCat;
-    @FXML
-    private MediaView mdpPlayer;
-    @FXML
-    private StackPane stackPlayer;
+    private MovieCollection selectedMovie;
+
 
 
     public MovieCollectionController() {
@@ -71,6 +82,13 @@ public class MovieCollectionController implements Initializable {
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
 
+        LocalDate currentDate = LocalDate.now();
+        System.out.println("Current Date: " + currentDate);
+        LocalDate currentDate2 = currentDate.minusYears(2);
+        System.out.println("Current Date - 2 years: " + currentDate2);
+
+
+
 
         colMovie.setCellValueFactory(new PropertyValueFactory<>("name"));
         colGenre.setCellValueFactory(new PropertyValueFactory<>("genre"));
@@ -79,11 +97,8 @@ public class MovieCollectionController implements Initializable {
         colRating.setCellValueFactory(new PropertyValueFactory<>("rating"));
         colCat.setCellValueFactory(new PropertyValueFactory<>("genre"));
 
-        // Bind the fitWidth and fitHeight properties of the MediaView to the HBox
-        mdpPlayer.fitWidthProperty().bind(stackPlayer.widthProperty());
-        mdpPlayer.fitHeightProperty().bind(stackPlayer.heightProperty());
-
         tblMovies.setItems(movieCollectionModel.getObservableMovies());
+
 
         txtSearchMovie.textProperty().addListener((_, _, newValue) -> {
             try {
@@ -100,13 +115,42 @@ public class MovieCollectionController implements Initializable {
             e.printStackTrace();
         }
 
+
+
+
+        tblGenre.getSelectionModel().selectedItemProperty().addListener((_, _, newValue) -> {
+            if ( newValue != null ) {
+                try {
+
+                    lstGenreMovies.setItems(movieCollectionModel.getMoviesForGenre(newValue));
+                    lstGenreMovies.getSelectionModel().selectedItemProperty().addListener((_,_,newMovie) ->{
+                        if ( newMovie != null ) {
+                            selectedMovie = (MovieCollection) newMovie;
+                            //System.out.println("Selected song from genre: " + selectedMovie().getAddres);
+                        }
+
+
+                    });
+
+
+                } catch (Exception e) {
+                    displayError(e);
+                }
+            } else {
+                lstGenreMovies.setItems(FXCollections.observableArrayList());
+            }
+        });
+
+
+
     }
+
 
     @FXML
     private NewMovieWindowController onNewMovieButtonClick(ActionEvent actionEvent) {
         try {
             FXMLLoader loader = new FXMLLoader();
-            loader.setLocation(getClass().getResource("/dk/easv/privatemoviecollection/NewMovieWindow.fxml"));
+            loader.setLocation(getClass().getResource("/dk/easv/privatemoviecollection/New.fxml"));
 
             Parent scene = loader.load();
             Stage stage = new Stage();
@@ -153,6 +197,9 @@ public class MovieCollectionController implements Initializable {
         System.out.println("tableRefresh called");
         try {
             movieCollectionModel.refreshMovies();
+            ObservableList<Genre> Genre = movieCollectionModel.getAllGenres();
+            tblGenre.setItems(null);
+            tblGenre.setItems(Genre);
         } catch (Exception e) {
             displayError(e);
         }
@@ -161,42 +208,126 @@ public class MovieCollectionController implements Initializable {
         tblMovies.setItems(null); // Clear the table
         tblMovies.setItems(MovieCollection); // Reset the items
         tblMovies.refresh(); // Refresh the table
+
+
+
+
     }
 
+
     @FXML
-    private NewCategoryController onNewGenreButtonClick(ActionEvent actionEvent) {
+    private void onNewGenreButtonClick() throws IOException {
         try {
             FXMLLoader loader = new FXMLLoader();
-            loader.setLocation(getClass().getResource("/dk/easv/privatemoviecollection/NewCategoryWindow.fxml"));
+            loader.setLocation(getClass().getResource("/dk/easv/privatemoviecollection/NewCategorylistWindow.fxml"));
 
             Parent scene = loader.load();
+
+            NewCategorylistWindowController playlistController = loader.getController();
+            playlistController.setMovieCollectionModel(movieCollectionModel);
+            playlistController.setMovieCollectionController(this);
+
             Stage stage = new Stage();
             stage.setScene(new Scene(scene));
             stage.setTitle("Add Genre");
 
-            NewCategoryController controller = loader.getController();
 
-            controller.setParent(this);
 
 
             stage.initModality(Modality.APPLICATION_MODAL);
-            stage.show();
+            stage.showAndWait();
+
         } catch (Exception e) {
+            e.printStackTrace();
+            displayError(e);
+        }
+
+    }
+
+
+    MPlayer player;
+    FileChooser fileChooser;
+
+    @FXML
+    public MPlayer onPlayButtonClick(ActionEvent actionEvent) {
+
+        try {
+            /*
+            // setting up the stages
+            MenuItem open = new MenuItem("Open");
+            Menu file = new Menu("File");
+            MenuBar menu = new MenuBar();
+
+            // Connecting the above three
+            file.getItems().add(open); // it would connect open with file
+            menu.getMenus().add(file);
+
+            // here you can choose any video
+            player = new MPlayer("fix file here so it uses "<----);
+
+            // Setting the menu at the top
+            player.setTop(menu);
+
+            // Adding player to the Scene
+            Scene scene = new Scene(player, 720, 535, Color.BLACK);
+
+            Stage stage = new Stage();
+            // height and width of the video player
+            // background color set to Black
+            stage.setScene(scene); // Setting the scene to stage
+            stage.show(); // Showing the stage
+*/
+
+        FXMLLoader loader = new FXMLLoader();
+        loader.setLocation(getClass().getResource("/dk/easv/privatemoviecollection/onPlayButtonWindow.fxml"));
+
+
+        Parent scene = loader.load();
+        Stage stage = new Stage();
+        stage.setScene(new Scene(scene));
+        stage.setTitle("MediaPlayer");
+
+        MPlayer controller = loader.getController();
+
+        controller.setParent(this);
+
+
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
             displayError(e);
         }
         return null;
     }
 
-    @FXML
-    private void onPlayButtonClick(ActionEvent actionEvent) {
-        try {
-            String filePath = "file:///C:/Users/benja/Videos/Movies/28_YEARS_LATER_Official_Trailer_HD.mp4";
-            Media media = new Media(filePath);
-            MediaPlayer mediaPlayer = new MediaPlayer(media);
-            mdpPlayer.setMediaPlayer(mediaPlayer);
-            mediaPlayer.play();
+    public MovieCollection selectedMovie(){
+
+        MovieCollection selectedMovie = tblMovies.getSelectionModel().getSelectedItem();
+        return selectedMovie;
+    }
+
+  /*public MovieCollection oldShittyMovies() {
+    try {
+            List<MovieCollection> movies = movieCollectionModel.checkIfOldShit();
+            if (!movies.isEmpty()) {
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Movies Unplayed for 2 Years with Low Score");
+                alert.setHeaderText(null);
+                alert.setContentText("There are movies that have been unplayed for 2 years and have a score under 6.");
+                alert.showAndWait();
+            }
         } catch (Exception e) {
             displayError(e);
         }
-    }
-}
+
+   */
+
+
+
+  
+  }
+
+
+
